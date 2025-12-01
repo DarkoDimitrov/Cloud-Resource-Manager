@@ -1,0 +1,68 @@
+version: '3.8'
+
+services:
+  backend:
+    build: ./backend
+    container_name: cloud-manager-backend
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=postgresql://postgres:postgres@db:5432/cloudmanager
+      - REDIS_URL=redis://redis:6379
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+    volumes:
+      - ./backend:/app
+      - backend-data:/app/data
+    depends_on:
+      - db
+      - redis
+    networks:
+      - cloud-manager-network
+    restart: unless-stopped
+
+  db:
+    image: postgres:14-alpine
+    container_name: cloud-manager-db
+    environment:
+      - POSTGRES_DB=cloudmanager
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    networks:
+      - cloud-manager-network
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    container_name: cloud-manager-redis
+    volumes:
+      - redis-data:/data
+    ports:
+      - "6379:6379"
+    networks:
+      - cloud-manager-network
+    restart: unless-stopped
+
+  # Frontend (to be added later)
+  # frontend:
+  #   build: ./frontend
+  #   container_name: cloud-manager-frontend
+  #   ports:
+  #     - "3000:80"
+  #   depends_on:
+  #     - backend
+  #   networks:
+  #     - cloud-manager-network
+  #   restart: unless-stopped
+
+volumes:
+  postgres-data:
+  redis-data:
+  backend-data:
+
+networks:
+  cloud-manager-network:
+    driver: bridge

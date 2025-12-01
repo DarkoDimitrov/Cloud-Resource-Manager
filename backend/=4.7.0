@@ -1,0 +1,12 @@
+Requirement already satisfied: anyio in c:\users\user\appdata\local\programs\python\python312\lib\site-packages (3.7.1)
+Collecting anyio
+  Downloading anyio-4.12.0-py3-none-any.whl.metadata (4.3 kB)
+Requirement already satisfied: idna>=2.8 in c:\users\user\appdata\local\programs\python\python312\lib\site-packages (from anyio) (3.10)
+Requirement already satisfied: typing_extensions>=4.5 in c:\users\user\appdata\local\programs\python\python312\lib\site-packages (from anyio) (4.15.0)
+Downloading anyio-4.12.0-py3-none-any.whl (113 kB)
+Installing collected packages: anyio
+  Attempting uninstall: anyio
+    Found existing installation: anyio 3.7.1
+    Uninstalling anyio-3.7.1:
+      Successfully uninstalled anyio-3.7.1
+Successfully installed anyio-4.12.0
