@@ -36,7 +36,7 @@ class AzureCredentials(ProviderCredentials):
 class ProviderCreate(BaseModel):
     """Schema for creating a provider."""
     name: str = Field(..., min_length=1, max_length=255)
-    provider_type: str = Field(..., pattern="^(openstack|aws|azure)$")
+    provider_type: str = Field(..., pattern="^(openstack|aws|azure|gcp)$")
     credentials: Dict[str, Any]
     regions: List[str] = Field(default_factory=list)
     enabled: bool = True
@@ -65,3 +65,4 @@ class ProviderResponse(BaseModel):
 
     class Config:
         from_attributes = True
+

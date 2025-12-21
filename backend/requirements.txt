@@ -19,6 +19,7 @@ azure-mgmt-costmanagement==4.0.1
 azure-identity==1.15.0
 google-cloud-compute==1.14.1
 google-cloud-monitoring==2.16.0
+google-cloud-billing==1.17.0
 
 # AI/ML Libraries
 anthropic==0.34.0

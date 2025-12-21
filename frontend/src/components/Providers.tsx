@@ -1,11 +1,13 @@
 import React, { useEffect, useState } from 'react';
 import { getProviders, createProvider, syncProviderInstances, testProviderConnection, deleteProvider } from '../services/api';
 import type { Provider } from '../services/api';
+import toast, { Toaster } from 'react-hot-toast';
 
 export default function Providers() {
   const [providers, setProviders] = useState<Provider[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAddForm, setShowAddForm] = useState(false);
+  const [syncingProviderId, setSyncingProviderId] = useState<string | null>(null);
   const [formData, setFormData] = useState({
     name: '',
     provider_type: 'openstack',
@@ -49,6 +51,7 @@ export default function Providers() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    const loadingToast = toast.loading('Creating provider...');
     try {
       let credentials = {};
       let regions: string[] = [];
@@ -94,6 +97,7 @@ export default function Providers() {
         credentials,
         regions,
       });
+      toast.success('Provider created successfully!', { id: loadingToast });
       setShowAddForm(false);
       setFormData({
         name: '',
@@ -118,39 +122,50 @@ export default function Providers() {
       loadProviders();
     } catch (error) {
       console.error('Failed to create provider:', error);
-      alert('Failed to create provider. Check console for details.');
+      toast.error('Failed to create provider. Check console for details.', { id: loadingToast });
     }
   };
 
   const handleSync = async (providerId: string) => {
+    setSyncingProviderId(providerId);
+    const loadingToast = toast.loading('Syncing provider instances...');
     try {
       await syncProviderInstances(providerId);
-      alert('Sync started successfully!');
+      toast.success('Provider synced successfully!', { id: loadingToast });
       loadProviders();
     } catch (error) {
       console.error('Failed to sync provider:', error);
-      alert('Failed to sync provider');
+      toast.error('Failed to sync provider', { id: loadingToast });
+    } finally {
+      setSyncingProviderId(null);
     }
   };
 
   const handleTest = async (providerId: string) => {
+    const loadingToast = toast.loading('Testing connection...');
     try {
       const result = await testProviderConnection(providerId);
-      alert(`Connection test: ${result.status}\n${result.message}`);
+      if (result.status === 'success') {
+        toast.success(`Connection successful: ${result.message}`, { id: loadingToast });
+      } else {
+        toast.error(`Connection failed: ${result.message}`, { id: loadingToast });
+      }
     } catch (error) {
       console.error('Failed to test connection:', error);
-      alert('Connection test failed');
+      toast.error('Connection test failed', { id: loadingToast });
     }
   };
 
   const handleDelete = async (providerId: string, providerName: string) => {
     if (window.confirm(`Are you sure you want to delete provider "${providerName}"?`)) {
+      const loadingToast = toast.loading('Deleting provider...');
       try {
         await deleteProvider(providerId);
+        toast.success('Provider deleted successfully', { id: loadingToast });
         loadProviders();
       } catch (error) {
         console.error('Failed to delete provider:', error);
-        alert('Failed to delete provider');
+        toast.error('Failed to delete provider', { id: loadingToast });
       }
     }
   };
@@ -161,6 +176,7 @@ export default function Providers() {
 
   return (
     <div className="px-4 sm:px-6 lg:px-8">
+      <Toaster position="top-right" />
       <div className="sm:flex sm:items-center">
         <div className="sm:flex-auto">
           <h1 className="text-3xl font-bold text-gray-900">Cloud Providers</h1>
@@ -466,8 +482,17 @@ export default function Providers() {
                           </button>
                           <button
                             onClick={() => handleSync(provider.id)}
-                            className="text-primary-600 hover:text-primary-900 mr-4"
+                            disabled={syncingProviderId === provider.id}
+                            className={`text-primary-600 hover:text-primary-900 mr-4 inline-flex items-center gap-1 ${
+                              syncingProviderId === provider.id ? 'opacity-50 cursor-not-allowed' : ''
+                            }`}
                           >
+                            {syncingProviderId === provider.id && (
+                              <svg className="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                              </svg>
+                            )}
                             Sync
                           </button>
                           <button

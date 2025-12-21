@@ -61,12 +61,75 @@ class AzureAdapter(BaseCloudAdapter):
         try:
             # Try to list VMs to test connection
             list(self.compute_client.virtual_machines.list_all())
+            print(f"[OK] Azure connection successful for subscription {self.subscription_id}")
             return True
         except AzureError as e:
-            print(f"Azure connection test failed: {e}")
+            error_message = str(e)
+
+            # Check for authentication errors
+            if "AuthenticationFailed" in error_message or "InvalidAuthenticationToken" in error_message:
+                error_msg = (
+                    f"[ERROR] Azure Authentication Failed\n"
+                    f"Subscription: {self.subscription_id}\n"
+                    f"Error: {e}\n\n"
+                    f"FIX: Check your credentials:\n"
+                    f"1. Verify Tenant ID is correct\n"
+                    f"2. Verify Client ID (Application ID) is correct\n"
+                    f"3. Verify Client Secret is valid and not expired\n"
+                    f"4. Go to: https://portal.azure.com/#blade/Microsoft_AAD_IAM/ActiveDirectoryMenuBlade/RegisteredApps\n"
+                    f"5. Find your app registration and regenerate secret if needed"
+                )
+            # Check for permission errors
+            elif "AuthorizationFailed" in error_message or "does not have authorization" in error_message:
+                error_msg = (
+                    f"[ERROR] Azure Permission Denied\n"
+                    f"Subscription: {self.subscription_id}\n"
+                    f"Error: {e}\n\n"
+                    f"FIX: Grant permissions to your Service Principal:\n"
+                    f"1. Go to: https://portal.azure.com/#blade/Microsoft_Azure_Billing/SubscriptionsBlade\n"
+                    f"2. Click on subscription: {self.subscription_id}\n"
+                    f"3. Click 'Access control (IAM)'\n"
+                    f"4. Click '+ Add' -> 'Add role assignment'\n"
+                    f"5. Select role: 'Reader' (minimum) or 'Virtual Machine Contributor'\n"
+                    f"6. Search for your application name and add it\n"
+                    f"7. Wait 5-10 minutes for permissions to propagate"
+                )
+            # Check for subscription not found errors
+            elif "SubscriptionNotFound" in error_message or "subscription" in error_message.lower():
+                error_msg = (
+                    f"[ERROR] Azure Subscription Not Found: '{self.subscription_id}'\n"
+                    f"Error: {e}\n\n"
+                    f"FIX: Verify subscription ID:\n"
+                    f"1. Go to: https://portal.azure.com/#blade/Microsoft_Azure_Billing/SubscriptionsBlade\n"
+                    f"2. Copy the correct Subscription ID\n"
+                    f"3. Make sure the service principal has access to this subscription"
+                )
+            # Generic Azure error
+            else:
+                error_msg = (
+                    f"[ERROR] Azure Connection Test Failed\n"
+                    f"Subscription: {self.subscription_id}\n"
+                    f"Error: {e}\n\n"
+                    f"TROUBLESHOOTING:\n"
+                    f"1. Verify all credentials (Tenant ID, Client ID, Client Secret, Subscription ID)\n"
+                    f"2. Check service principal permissions\n"
+                    f"3. Ensure subscription is active\n"
+                    f"Portal: https://portal.azure.com"
+                )
+
+            print(error_msg)
             return False
         except Exception as e:
-            print(f"Azure connection test error: {e}")
+            error_msg = (
+                f"[ERROR] Azure Connection Test Error\n"
+                f"Subscription: {self.subscription_id}\n"
+                f"Error: {e}\n\n"
+                f"This may be due to:\n"
+                f"1. Network connectivity issues\n"
+                f"2. Invalid credentials format\n"
+                f"3. Azure service temporarily unavailable"
+            )
+            print(error_msg)
             return False
 
     def list_instances(self, region: Optional[str] = None) -> List[Dict[str, Any]]:
@@ -479,3 +542,4 @@ class AzureAdapter(BaseCloudAdapter):
             'Standard_F2s_v2': 62.78, 'Standard_F4s_v2': 125.56
         }
         return price_map.get(vm_size, 50.0)  # Default estimate
+

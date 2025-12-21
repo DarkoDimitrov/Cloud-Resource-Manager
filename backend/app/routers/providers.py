@@ -174,7 +174,7 @@ def test_provider_connection(provider_id: str, db: Session = Depends(get_db)):
 
         return {
             "provider_id": provider_id,
-            "status": "connected" if connection_ok else "failed",
+            "status": "success" if connection_ok else "error",
             "message": "Connection successful" if connection_ok else "Connection failed"
         }
 
