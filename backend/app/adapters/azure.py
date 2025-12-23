@@ -145,6 +145,7 @@ class AzureAdapter(BaseCloudAdapter):
             instances = []
             vms = self.compute_client.virtual_machines.list_all()
 
+            instance_count = 0
             for vm in vms:
                 # Filter by location if specified
                 if region and vm.location != region:
@@ -162,14 +163,74 @@ class AzureAdapter(BaseCloudAdapter):
 
                 normalized = self.normalize_instance_data(vm, status)
                 instances.append(normalized)
+                instance_count += 1
+
+            if instance_count == 0:
+                print(f"[INFO] No Azure VMs found in subscription '{self.subscription_id}'")
+                print(f"   If you expect VMs to exist, check: https://portal.azure.com/#blade/HubsExtension/BrowseResource/resourceType/Microsoft.Compute%2FVirtualMachines")
+            else:
+                print(f"[OK] Successfully synced {instance_count} Azure VM(s) from subscription '{self.subscription_id}'")
 
             return instances
 
         except AzureError as e:
-            print(f"Failed to list Azure VMs: {e}")
+            error_message = str(e)
+
+            # Check for permission errors
+            if "AuthorizationFailed" in error_message or "does not have authorization" in error_message:
+                error_msg = (
+                    f"[ERROR] Azure Sync Failed: Permission Denied\n"
+                    f"Subscription: {self.subscription_id}\n"
+                    f"Error: {e}\n\n"
+                    f"FIX: Grant permissions to your Service Principal:\n"
+                    f"1. Go to: https://portal.azure.com/#blade/Microsoft_Azure_Billing/SubscriptionsBlade\n"
+                    f"2. Click on subscription: {self.subscription_id}\n"
+                    f"3. Click 'Access control (IAM)'\n"
+                    f"4. Click '+ Add' -> 'Add role assignment'\n"
+                    f"5. Select role: 'Reader' (minimum) or 'Virtual Machine Contributor'\n"
+                    f"6. Search for your application name and add it\n"
+                    f"7. Wait 5-10 minutes for permissions to propagate"
+                )
+            # Check for authentication errors
+            elif "AuthenticationFailed" in error_message or "InvalidAuthenticationToken" in error_message:
+                error_msg = (
+                    f"[ERROR] Azure Sync Failed: Authentication Error\n"
+                    f"Subscription: {self.subscription_id}\n"
+                    f"Error: {e}\n\n"
+                    f"FIX: Check your credentials:\n"
+                    f"1. Verify Tenant ID, Client ID, and Client Secret are correct\n"
+                    f"2. Ensure Client Secret hasn't expired\n"
+                    f"Portal: https://portal.azure.com/#blade/Microsoft_AAD_IAM/ActiveDirectoryMenuBlade/RegisteredApps"
+                )
+            # Check for subscription errors
+            elif "SubscriptionNotFound" in error_message or "subscription" in error_message.lower():
+                error_msg = (
+                    f"[ERROR] Azure Sync Failed: Subscription Not Found\n"
+                    f"Subscription: {self.subscription_id}\n"
+                    f"Error: {e}\n\n"
+                    f"FIX: Verify subscription ID is correct:\n"
+                    f"https://portal.azure.com/#blade/Microsoft_Azure_Billing/SubscriptionsBlade"
+                )
+            else:
+                error_msg = (
+                    f"[ERROR] Azure Sync Failed\n"
+                    f"Subscription: {self.subscription_id}\n"
+                    f"Error: {e}\n"
+                )
+
+            print(error_msg)
             return []
         except Exception as e:
-            print(f"Error listing Azure VMs: {e}")
+            error_msg = (
+                f"[ERROR] Azure Sync Error\n"
+                f"Subscription: {self.subscription_id}\n"
+                f"Error: {e}\n\n"
+                f"This may be due to:\n"
+                f"1. Network connectivity issues\n"
+                f"2. Invalid credentials format\n"
+                f"3. Azure service temporarily unavailable"
+            )
+            print(error_msg)
             return []
 
     def get_instance(self, instance_id: str) -> Dict[str, Any]:
@@ -461,9 +522,7 @@ class AzureAdapter(BaseCloudAdapter):
             monthly_cost = self._estimate_vm_cost(vm.hardware_profile.vm_size)
 
             return {
-                'id': f"{resource_group}/{vm.name}",
                 'name': vm.name,
-                'provider': 'azure',
                 'provider_instance_id': vm.vm_id,
                 'status': status or 'unknown',
                 'instance_type': vm.hardware_profile.vm_size,

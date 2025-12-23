@@ -18,6 +18,9 @@ def sync_provider_instances(db: Session, provider: Provider) -> int:
         Number of instances synced
     """
     try:
+        # Store provider ID for later refetch
+        provider_id = str(provider.id)
+
         # Decrypt credentials
         credentials = decrypt_credentials(provider.credentials)
 
@@ -32,34 +35,42 @@ def sync_provider_instances(db: Session, provider: Provider) -> int:
         for cloud_inst in cloud_instances:
             # Check if instance exists
             existing = db.query(Instance).filter(
-                Instance.provider_id == provider.id,
+                Instance.provider_id == provider_id,
                 Instance.provider_instance_id == cloud_inst["provider_instance_id"]
             ).first()
 
             if existing:
-                # Update existing instance
+                # Update existing instance (don't update provider_id)
                 for key, value in cloud_inst.items():
-                    setattr(existing, key, value)
+                    if key != 'provider_id':  # Don't overwrite provider_id
+                        setattr(existing, key, value)
                 existing.last_updated = datetime.utcnow()
             else:
-                # Create new instance
+                # Create new instance (ensure provider_id is set correctly)
+                instance_data = dict(cloud_inst)
+                instance_data.pop('provider_id', None)  # Remove provider_id if present
                 new_instance = Instance(
-                    provider_id=provider.id,
-                    **cloud_inst
+                    provider_id=provider_id,
+                    **instance_data
                 )
                 db.add(new_instance)
 
             count += 1
 
-        # Update provider last_sync
-        provider.last_sync = datetime.utcnow()
+        # Refetch provider to ensure it's attached to the session
+        db_provider = db.query(Provider).filter(Provider.id == provider_id).first()
+        if db_provider:
+            db_provider.last_sync = datetime.utcnow()
 
         db.commit()
         return count
 
     except Exception as e:
         db.rollback()
-        print(f"Failed to sync instances for provider {provider.id}: {e}")
+        import traceback
+        print(f"Failed to sync instances for provider {provider_id}: {e}")
+        print("Full traceback:")
+        traceback.print_exc()
         raise
 
 
